@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StudyForge — AI Study Planner</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <div class="brand">
+      <div class="brand-mark">SF</div>
+      <h1>StudyForge</h1>
+      <p class="tagline">AI-personalized study plans, a tutor chatbot, and quizzes that test what you actually learned.</p>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login">Log in</button>
+      <button class="auth-tab" data-tab="register">Sign up</button>
+    </div>
+
+    <form id="loginForm" class="auth-form">
+      <label>Email</label>
+      <input type="email" name="email" required />
+      <label>Password</label>
+      <input type="password" name="password" required minlength="6" />
+      <button type="submit" class="btn primary full">Log in</button>
+      <p class="error" id="loginError"></p>
+    </form>
+
+    <form id="registerForm" class="auth-form hidden">
+      <label>Name</label>
+      <input type="text" name="name" required />
+      <label>Email</label>
+      <input type="email" name="email" required />
+      <label>Password (min 6 chars)</label>
+      <input type="password" name="password" required minlength="6" />
+      <button type="submit" class="btn primary full">Create account</button>
+      <p class="error" id="registerError"></p>
+    </form>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand-mini"><span class="brand-mark small">SF</span> StudyForge</div>
+    <nav>
+      <button class="nav-btn active" data-view="dashboard">📊 Dashboard</button>
+      <button class="nav-btn" data-view="newplan">➕ New Study Plan</button>
+      <button class="nav-btn" data-view="plans">📚 My Plans</button>
+      <button class="nav-btn" data-view="tutor">💬 AI Tutor</button>
+      <button class="nav-btn" data-view="quizzes">📝 Quiz History</button>
+    </nav>
+    <div class="sidebar-footer">
+      <div id="userName" class="user-name"></div>
+      <button id="logoutBtn" class="btn ghost small">Log out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <section id="view-dashboard" class="view active">
+      <h2>Dashboard</h2>
+      <div id="aiBanner" class="ai-banner hidden"></div>
+      <div class="stat-grid" id="statGrid"></div>
+      <div class="panel-grid">
+        <div class="panel">
+          <h3>Recent Plans</h3>
+          <div id="recentPlans" class="list"></div>
+        </div>
+        <div class="panel">
+          <h3>Recent Quiz Attempts</h3>
+          <div id="recentQuizzes" class="list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NEW PLAN -->
+    <section id="view-newplan" class="view">
+      <h2>Create a New Study Plan</h2>
+      <p class="muted">Tell the AI what you want to study. It will analyze your input and generate a personalized topic-by-topic plan.</p>
+      <form id="planForm" class="form-card">
+        <div class="form-row">
+          <div class="form-field">
+            <label>Subject / Skill *</label>
+            <input type="text" name="subject" placeholder="e.g. Python, Organic Chemistry, IELTS Speaking" required />
+          </div>
+          <div class="form-field">
+            <label>Your goal</label>
+            <input type="text" name="goal" placeholder="e.g. Pass an interview, get a 7.5 band, build a web app" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Current level</label>
+            <select name="level">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Hours per day you can study</label>
+            <input type="number" name="hoursPerDay" min="0.5" max="12" step="0.5" value="1.5" />
+          </div>
+          <div class="form-field">
+            <label>Plan duration (days)</label>
+            <input type="number" name="durationDays" min="3" max="180" value="14" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Anything else the AI should know?</label>
+          <textarea name="notes" rows="3" placeholder="e.g. I already know basic loops, I learn best with examples, I have an exam on..."></textarea>
+        </div>
+        <button type="submit" class="btn primary" id="generatePlanBtn">✨ Generate My Study Plan</button>
+        <p class="error" id="planError"></p>
+      </form>
+    </section>
+
+    <!-- PLANS LIST -->
+    <section id="view-plans" class="view">
+      <h2>My Study Plans</h2>
+      <div id="plansList" class="list"></div>
+    </section>
+
+    <!-- PLAN DETAIL -->
+    <section id="view-plandetail" class="view">
+      <button class="btn ghost small" id="backToPlans">← Back to plans</button>
+      <h2 id="pdTitle"></h2>
+      <p id="pdOverview" class="muted"></p>
+      <div class="progress-bar-outer"><div class="progress-bar-inner" id="pdProgressBar"></div></div>
+      <p id="pdProgressText" class="muted small"></p>
+
+      <div class="topic-list" id="pdTopics"></div>
+
+      <div class="quiz-generate-box">
+        <h3>📝 Test yourself</h3>
+        <p class="muted">Generates a quiz from the topics you've marked as in-progress or completed.</p>
+        <div class="form-row">
+          <div class="form-field">
+            <label># Questions</label>
+            <input type="number" id="quizNumQ" min="3" max="15" value="5" />
+          </div>
+          <div class="form-field">
+            <label>Difficulty</label>
+            <select id="quizDifficulty">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn primary" id="generateQuizBtn">Generate Quiz</button>
+        <p class="error" id="quizGenError"></p>
+      </div>
+    </section>
+
+    <!-- QUIZ TAKING -->
+    <section id="view-quiz" class="view">
+      <button class="btn ghost small" id="backFromQuiz">← Back</button>
+      <h2 id="quizTitle"></h2>
+      <form id="quizForm"></form>
+      <button class="btn primary" id="submitQuizBtn">Submit Answers</button>
+      <div id="quizResults" class="quiz-results hidden"></div>
+    </section>
+
+    <!-- TUTOR CHAT -->
+    <section id="view-tutor" class="view">
+      <h2>💬 AI Tutor</h2>
+      <div class="form-field" style="max-width:360px">
+        <label>Chat about which plan? (optional, gives context)</label>
+        <select id="tutorPlanSelect"><option value="">General / no specific plan</option></select>
+      </div>
+      <div id="chatWindow" class="chat-window"></div>
+      <form id="chatForm" class="chat-form">
+        <input type="text" id="chatInput" placeholder="Ask your tutor anything about your subject..." autocomplete="off" required />
+        <button type="submit" class="btn primary">Send</button>
+      </form>
+    </section>
+
+    <!-- QUIZ HISTORY -->
+    <section id="view-quizzes" class="view">
+      <h2>📝 Quiz History</h2>
+      <div id="quizHistoryList" class="list"></div>
+    </section>
+
+  </main>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
