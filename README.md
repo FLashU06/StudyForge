@@ -40,7 +40,7 @@ that adapt to exactly what you studied, and a real conversational tutor, add a *
 2. Create an API key.
 3. Open `backend/.env` and set:
    ```
-   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
+   GROQ_API_KEY=your_key_here
    ```
 4. Restart the server (`npm start`).
 

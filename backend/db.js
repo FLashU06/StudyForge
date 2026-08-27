@@ -1,11 +1,13 @@
 const path = require("path");
-const Database = require("better-sqlite3");
+const fs = require("fs");
+const { Database } = require("node-sqlite3-wasm");
 
 const dbPath = path.join(__dirname, "data", "app.db");
+fs.mkdirSync(path.join(__dirname, "data"), { recursive: true });
 const db = new Database(dbPath);
 
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+db.exec("PRAGMA journal_mode = WAL");
+db.exec("PRAGMA foreign_keys = ON");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
