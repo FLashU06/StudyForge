@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const ai = require("../services/aiService");
@@ -12,7 +12,7 @@ router.post("/generate", requireAuth, async (req, res) => {
     const { planId, numQuestions = 5, difficulty = "medium", topicIds } = req.body || {};
     if (!planId) return res.status(400).json({ error: "planId is required" });
 
-    const plan = db.prepare("SELECT * FROM study_plans WHERE id = ? AND user_id = ?").get([planId, req.user.id]);
+    const plan = db.prepare("SELECT * FROM study_plans WHERE id = ? AND user_id = ?").get(planId, req.user.id);
     if (!plan) return res.status(404).json({ error: "Plan not found" });
 
     let topics;
@@ -20,7 +20,7 @@ router.post("/generate", requireAuth, async (req, res) => {
       const placeholders = topicIds.map(() => "?").join(",");
       topics = db
         .prepare(`SELECT * FROM topics WHERE plan_id = ? AND id IN (${placeholders})`)
-        .all([planId, ...topicIds]);
+        .all(planId, ...topicIds);
     } else {
       topics = db
         .prepare("SELECT * FROM topics WHERE plan_id = ? AND status IN ('in_progress','completed')")
@@ -46,7 +46,7 @@ router.post("/generate", requireAuth, async (req, res) => {
         `INSERT INTO quizzes (user_id, plan_id, title, difficulty, topic_titles, questions_json)
          VALUES (?, ?, ?, ?, ?, ?)`
       )
-      .run([req.user.id, planId, quizData.title, difficulty, JSON.stringify(topicTitles), JSON.stringify(quizData.questions)]);
+      .run(req.user.id, planId, quizData.title, difficulty, JSON.stringify(topicTitles), JSON.stringify(quizData.questions));
 
     const quizId = info.lastInsertRowid;
     res.json({
@@ -68,7 +68,7 @@ router.post("/generate", requireAuth, async (req, res) => {
 
 router.post("/:id/submit", requireAuth, (req, res) => {
   const { answers } = req.body || {}; // array of selected option indices, same order as questions
-  const quiz = db.prepare("SELECT * FROM quizzes WHERE id = ? AND user_id = ?").get([req.params.id, req.user.id]);
+  const quiz = db.prepare("SELECT * FROM quizzes WHERE id = ? AND user_id = ?").get(req.params.id, req.user.id);
   if (!quiz) return res.status(404).json({ error: "Quiz not found" });
   if (!Array.isArray(answers)) return res.status(400).json({ error: "answers array is required" });
 
@@ -90,7 +90,7 @@ router.post("/:id/submit", requireAuth, (req, res) => {
 
   db.prepare(
     `INSERT INTO quiz_attempts (quiz_id, user_id, score, total, answers_json) VALUES (?, ?, ?, ?, ?)`
-  ).run([quiz.id, req.user.id, score, questions.length, JSON.stringify(answers)]);
+  ).run(quiz.id, req.user.id, score, questions.length, JSON.stringify(answers));
 
   res.json({ score, total: questions.length, results });
 });
