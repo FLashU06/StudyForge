@@ -1,16 +1,18 @@
 services:
   - type: web
     name: studyforge
-    runtime: node
-    rootDir: backend
-    buildCommand: npm install
-    startCommand: node server.js
+    env: node
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
     envVars:
-      - key: PORT
-        value: 10000
       - key: JWT_SECRET
-        generateValue: true       # Render auto-generates a secure random value
+        generateValue: true
       - key: GROQ_API_KEY
-        sync: false               # you fill this in the Render dashboard (optional)
+        sync: false
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
