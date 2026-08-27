@@ -7,10 +7,10 @@ services:
     startCommand: cd backend && node server.js
     envVars:
       - key: JWT_SECRET
-        generateValue: true
+        value: b189ecfc7d394ac9a7c663db528acd92da7145b89ae5faf5ccc1d4cd6442fa8c
       - key: GROQ_API_KEY
         value: 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
       - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
+        value: llama-3.1-8b-instant
       - key: GEMINI_MODEL
         value: gemini-1.5-flash
