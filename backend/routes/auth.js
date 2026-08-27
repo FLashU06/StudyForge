@@ -26,7 +26,7 @@ router.post("/register", (req, res) => {
   const hash = bcrypt.hashSync(password, 10);
   const info = db
     .prepare("INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)")
-    .run(name, email.toLowerCase(), hash);
+    .run([name, email.toLowerCase(), hash]);
 
   const user = { id: info.lastInsertRowid, name, email: email.toLowerCase() };
   const token = signToken(user);
