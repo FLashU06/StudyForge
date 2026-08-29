@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const db = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const ai = require("../services/aiService");
@@ -12,19 +12,23 @@ router.post("/generate", requireAuth, async (req, res) => {
     const { planId, numQuestions = 5, difficulty = "medium", topicIds } = req.body || {};
     if (!planId) return res.status(400).json({ error: "planId is required" });
 
-    const plan = db.prepare("SELECT * FROM study_plans WHERE id = ? AND user_id = ?").get([planId, req.user.id]);
+    const plan = await db.get("SELECT * FROM study_plans WHERE id = ? AND user_id = ?", [
+      planId,
+      req.user.id,
+    ]);
     if (!plan) return res.status(404).json({ error: "Plan not found" });
 
     let topics;
     if (Array.isArray(topicIds) && topicIds.length > 0) {
       const placeholders = topicIds.map(() => "?").join(",");
-      topics = db
-        .prepare(`SELECT * FROM topics WHERE plan_id = ? AND id IN (${placeholders})`)
-        .all([planId, ...topicIds]);
+      topics = await db.all(`SELECT * FROM topics WHERE plan_id = ? AND id IN (${placeholders})`, [
+        planId,
+        ...topicIds,
+      ]);
     } else {
-      topics = db
-        .prepare("SELECT * FROM topics WHERE plan_id = ? AND status IN ('in_progress','completed')")
-        .all(planId);
+      topics = await db.all("SELECT * FROM topics WHERE plan_id = ? AND status IN ('in_progress','completed')", [
+        planId,
+      ]);
     }
 
     if (topics.length === 0) {
@@ -41,12 +45,19 @@ router.post("/generate", requireAuth, async (req, res) => {
       difficulty,
     });
 
-    const info = db
-      .prepare(
-        `INSERT INTO quizzes (user_id, plan_id, title, difficulty, topic_titles, questions_json)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      )
-      .run([req.user.id, planId, quizData.title, difficulty, JSON.stringify(topicTitles), JSON.stringify(quizData.questions)]);
+    const info = await db.run(
+      `INSERT INTO quizzes (user_id, plan_id, title, difficulty, topic_titles, questions_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [
+        req.user.id,
+        planId,
+        quizData.title,
+        difficulty,
+        JSON.stringify(topicTitles),
+        JSON.stringify(quizData.questions),
+        new Date().toISOString(),
+      ]
+    );
 
     const quizId = info.lastInsertRowid;
     res.json({
@@ -66,46 +77,59 @@ router.post("/generate", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/:id/submit", requireAuth, (req, res) => {
-  const { answers } = req.body || {}; // array of selected option indices, same order as questions
-  const quiz = db.prepare("SELECT * FROM quizzes WHERE id = ? AND user_id = ?").get([req.params.id, req.user.id]);
-  if (!quiz) return res.status(404).json({ error: "Quiz not found" });
-  if (!Array.isArray(answers)) return res.status(400).json({ error: "answers array is required" });
+router.post("/:id/submit", requireAuth, async (req, res) => {
+  try {
+    const { answers } = req.body || {}; // array of selected option indices, same order as questions
+    const quiz = await db.get("SELECT * FROM quizzes WHERE id = ? AND user_id = ?", [
+      req.params.id,
+      req.user.id,
+    ]);
+    if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+    if (!Array.isArray(answers)) return res.status(400).json({ error: "answers array is required" });
 
-  const questions = JSON.parse(quiz.questions_json);
-  let score = 0;
-  const results = questions.map((q, i) => {
-    const selected = answers[i];
-    const correct = selected === q.correctIndex;
-    if (correct) score++;
-    return {
-      question: q.question,
-      options: q.options,
-      selectedIndex: selected,
-      correctIndex: q.correctIndex,
-      correct,
-      explanation: q.explanation,
-    };
-  });
+    const questions = JSON.parse(quiz.questions_json);
+    let score = 0;
+    const results = questions.map((q, i) => {
+      const selected = answers[i];
+      const correct = selected === q.correctIndex;
+      if (correct) score++;
+      return {
+        question: q.question,
+        options: q.options,
+        selectedIndex: selected,
+        correctIndex: q.correctIndex,
+        correct,
+        explanation: q.explanation,
+      };
+    });
 
-  db.prepare(
-    `INSERT INTO quiz_attempts (quiz_id, user_id, score, total, answers_json) VALUES (?, ?, ?, ?, ?)`
-  ).run([quiz.id, req.user.id, score, questions.length, JSON.stringify(answers)]);
+    await db.run(
+      `INSERT INTO quiz_attempts (quiz_id, user_id, score, total, answers_json, taken_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      [quiz.id, req.user.id, score, questions.length, JSON.stringify(answers), new Date().toISOString()]
+    );
 
-  res.json({ score, total: questions.length, results });
+    res.json({ score, total: questions.length, results });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to submit quiz" });
+  }
 });
 
-router.get("/history", requireAuth, (req, res) => {
-  const rows = db
-    .prepare(
+router.get("/history", requireAuth, async (req, res) => {
+  try {
+    const rows = await db.all(
       `SELECT qa.id, qa.score, qa.total, qa.taken_at, q.title, q.difficulty, q.plan_id
        FROM quiz_attempts qa
        JOIN quizzes q ON q.id = qa.quiz_id
        WHERE qa.user_id = ?
-       ORDER BY qa.taken_at DESC`
-    )
-    .all(req.user.id);
-  res.json({ attempts: rows });
+       ORDER BY qa.taken_at DESC`,
+      [req.user.id]
+    );
+    res.json({ attempts: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load quiz history" });
+  }
 });
 
 module.exports = router;
