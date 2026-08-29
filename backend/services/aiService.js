@@ -1,12 +1,10 @@
 // AI service layer.
-// Tries a real free AI provider (Groq first, then Gemini) if a key is configured.
+// Uses NVIDIA's OpenAI-compatible NIM API if a key is configured.
 // If no key is set, or the call fails for any reason, falls back to solid
 // built-in generators so the app always works end-to-end.
 
-const GROQ_KEY = process.env.GROQ_API_KEY || "";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+const NVIDIA_KEY = process.env.NVIDIA_API_KEY || "";
+const NVIDIA_MODEL = process.env.NVIDIA_MODEL || "meta/llama-3.1-8b-instruct";
 
 function extractJson(text) {
   if (!text) return null;
@@ -27,63 +25,48 @@ function extractJson(text) {
   }
 }
 
-async function callGroq(systemPrompt, userPrompt, jsonMode) {
-  if (!GROQ_KEY) return null;
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+async function callNvidia(systemPrompt, userPrompt, jsonMode) {
+  if (!NVIDIA_KEY) return null;
+  // NVIDIA NIM's chat/completions endpoint is OpenAI-compatible.
+  // Not all NVIDIA-hosted models honor response_format, so we ask for JSON
+  // in the prompt itself and rely on extractJson() rather than forcing it.
+  const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${GROQ_KEY}`,
+      Authorization: `Bearer ${NVIDIA_KEY}`,
     },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model: NVIDIA_MODEL,
       temperature: 0.5,
+      max_tokens: 2048,
       messages: [
-        { role: "system", content: systemPrompt },
+        {
+          role: "system",
+          content: jsonMode ? `${systemPrompt}\nRespond with ONLY raw JSON, no markdown fences.` : systemPrompt,
+        },
         { role: "user", content: userPrompt },
       ],
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
   });
-  if (!res.ok) throw new Error(`Groq error ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`NVIDIA error ${res.status}: ${await res.text()}`);
   const data = await res.json();
   return data.choices?.[0]?.message?.content || null;
 }
 
-async function callGemini(systemPrompt, userPrompt) {
-  if (!GEMINI_KEY) return null;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-    }),
-  });
-  if (!res.ok) throw new Error(`Gemini error ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-}
-
-// Tries providers in order; returns raw text or null if none configured/working.
+// Tries the AI provider; returns raw text or null if not configured/working.
 async function callAI(systemPrompt, userPrompt, jsonMode = false) {
   try {
-    const g = await callGroq(systemPrompt, userPrompt, jsonMode);
-    if (g) return g;
+    const nv = await callNvidia(systemPrompt, userPrompt, jsonMode);
+    if (nv) return nv;
   } catch (e) {
-    console.warn("[aiService] Groq failed:", e.message);
-  }
-  try {
-    const gm = await callGemini(systemPrompt, userPrompt);
-    if (gm) return gm;
-  } catch (e) {
-    console.warn("[aiService] Gemini failed:", e.message);
+    console.warn("[aiService] NVIDIA failed:", e.message);
   }
   return null;
 }
 
 function isAiConfigured() {
-  return Boolean(GROQ_KEY || GEMINI_KEY);
+  return Boolean(NVIDIA_KEY);
 }
 
 // ---------- STUDY PLAN ----------
@@ -257,7 +240,7 @@ function fallbackQuiz({ subject, topics, numQuestions, difficulty }) {
         `It uses an outdated approach superseded before "${topic}" was introduced.`,
       ],
       correctIndex: 0,
-      explanation: `Option A reflects the standard, correct application of "${topic}". (Note: this is a generic fallback question — add a free AI API key in .env for richer, more specific quizzes.)`,
+      explanation: `Option A reflects the standard, correct application of "${topic}". (Note: this is a generic fallback question — add a free NVIDIA API key in Render as NVIDIA_API_KEY for richer, more specific quizzes.)`,
     });
   }
   return { title: `${subject} Review Quiz`, questions: qs, source: "fallback" };
@@ -285,7 +268,7 @@ Explain clearly, use examples, ask a short check-in question when useful, and ke
 }
 
 function fallbackChatReply(message, subject) {
-  return `I hear you: "${message.slice(0, 200)}"\n\nI don't have a live AI connection configured right now (no GROQ_API_KEY / GEMINI_API_KEY set in the backend .env), so here's a quick generic pointer instead of a full AI answer:\n\n1. Break the question about ${subject || "this topic"} into smaller sub-questions.\n2. Look up one core definition you're unsure about.\n3. Try a small example by hand before checking the answer.\n\nTo get real AI tutoring, add a free Groq API key (https://console.groq.com/keys) to backend/.env as GROQ_API_KEY and restart the server.`;
+  return `I hear you: "${message.slice(0, 200)}"\n\nI don't have a live AI connection configured right now (no NVIDIA_API_KEY set in Render's environment), so here's a quick generic pointer instead of a full AI answer:\n\n1. Break the question about ${subject || "this topic"} into smaller sub-questions.\n2. Look up one core definition you're unsure about.\n3. Try a small example by hand before checking the answer.\n\nTo get real AI tutoring, add a free NVIDIA API key (https://build.nvidia.com) to Render's Environment as NVIDIA_API_KEY.`;
 }
 
 module.exports = {
