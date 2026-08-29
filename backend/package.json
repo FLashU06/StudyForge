@@ -9,7 +9,7 @@
     "dev": "node server.js"
   },
   "dependencies": {
-    "node-sqlite3-wasm": "^0.8.60",
+    "pg": "^8.13.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

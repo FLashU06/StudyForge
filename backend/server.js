@@ -3,6 +3,7 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 
+const db = require("./db");
 const authRoutes = require("./routes/auth");
 const planRoutes = require("./routes/plan");
 const quizRoutes = require("./routes/quiz");
@@ -34,7 +35,18 @@ app.get("*", (req, res, next) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 Study AI server running at http://localhost:${PORT}`);
-  console.log(`   AI provider configured: ${ai.isAiConfigured() ? "YES" : "NO (using built-in fallback generators)"}\n`);
+async function start() {
+  await db.init();
+  app.listen(PORT, () => {
+    console.log(`\n🚀 Study AI server running at http://localhost:${PORT}`);
+    console.log(
+      `   AI provider configured: ${ai.isAiConfigured() ? "YES" : "NO (using built-in fallback generators)"}\n`
+    );
+    console.log(`   Database: Postgres (${process.env.DATABASE_URL ? "connected" : "DATABASE_URL not set!"})\n`);
+  });
+}
+
+start().catch((err) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
 });
